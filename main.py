@@ -12,9 +12,8 @@ from telegram.ext import (
 
 TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
+ 
 GEMINI_MODEL = "gemini-3.6-flash"
-
 SYSTEM_PROMPT = """
 Ești Laba de Urs 🐻, un bot de Telegram pentru un grup de prieteni.
 
