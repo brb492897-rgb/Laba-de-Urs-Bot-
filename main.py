@@ -1,181 +1,108 @@
 import os
-import random
 import requests
-
 from telegram import Update
-from telegram.ext import (
-    Application,
-    MessageHandler,
-    ContextTypes,
-    filters
-)
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
 TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
- 
-GEMINI_MODEL = "gemini-3.6-flash"
+
+MODEL = "gemini-3.6-flash"
+
 SYSTEM_PROMPT = """
-Ești Laba de Urs 🐻, un bot de Telegram pentru un grup de prieteni.
+Ești Laba de Urs 🐻, un bot de Telegram pentru caterincă.
 
-Vorbești natural în limba română.
-Ești foarte amuzant, faci caterincă și glume.
-Poți folosi limbaj colocvial și vulgar moderat atunci când se potrivește.
-Răspunsurile sunt de obicei scurte.
+Vorbești în limba română, natural, scurt și amuzant.
+Îți place caterinca și glumele între prieteni.
+Poți folosi limbaj vulgar moderat atunci când se potrivește glumei.
 
-Nu răspunde la fiecare mesaj banal.
-Dacă mesajul nu necesită răspuns, răspunde exact cu:
-SKIP
+Dacă cineva te salută sau îți vorbește direct, răspunde.
 
-Dacă cineva îți vorbește direct, te salută, pune o întrebare
-sau face caterincă cu tine, răspunde natural.
+Dacă cineva înjură, răspunde în stil de caterincă.
 
-Dacă cineva înjură, poți răspunde în stil de caterincă.
 Nu amenința serios și nu încuraja violența reală.
 
-Dacă cineva întreabă cine ești, spune că ești botul Laba de Urs.
+Dacă mesajul nu necesită răspuns, răspunde exact:
+SKIP
 """
 
-CUVINTE_INJURATURI = [
-    "muie",
-    "pula",
-    "pulă",
-    "coaie",
-    "fut",
-    "futu",
-    "futut",
-    "căcat",
-    "cacat",
-    "cur",
-    "curva",
-    "curvă",
-    "idiot",
-    "prost"
-]
+def ask_gemini(text):
 
-REPLICI = [
-    "Taci, bă, că te-a auzit ursul 😂🐻",
-    "Bă, ușor cu vocabularul, că se trezește ursul 😂🐻",
-    "Gata, mă, iar ai pornit motorul de înjurături? 😂",
-    "Băăă, ce limbaj ai azi 😂🐻",
-    "Mai încet, campionule, că te vede Laba de Urs 😂🐻"
-]
-
-
-def contine_injuratura(text):
-    text = text.lower()
-
-    for cuvant in CUVINTE_INJURATURI:
-        if cuvant in text:
-            return True
-
-    return False
-
-
-def gemini_response(text):
-    if not GEMINI_API_KEY:
-        return "❌ GEMINI_API_KEY nu este setat!"
-
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        f"v1beta/models/{GEMINI_MODEL}:generateContent"
-    )
+    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
 
     headers = {
-        "x-goog-api-key": GEMINI_API_KEY.strip(),
+        "x-goog-api-key": GEMINI_API_KEY,
         "Content-Type": "application/json"
     }
 
-    payload = {
-        "system_instruction": {
-            "parts": [
-                {
-                    "text": SYSTEM_PROMPT
-                }
-            ]
-        },
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": text
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 1.0,
-            "maxOutputTokens": 180
-        }
+    data = {
+        "model": MODEL,
+        "input": text,
+        "system_instruction": SYSTEM_PROMPT
     }
 
     try:
-        response = requests.post(
+        r = requests.post(
             url,
             headers=headers,
-            json=payload,
+            json=data,
             timeout=30
         )
 
-        data = response.json()
+        result = r.json()
 
-        if response.status_code != 200:
-            error = data.get("error", {})
-            return (
-                "❌ Gemini: "
-                + error.get(
-                    "message",
-                    "eroare necunoscută"
-                )
+        print("Gemini status:", r.status_code)
+        print("Gemini response:", result)
+
+        if r.status_code != 200:
+            error = result.get("error", {})
+            return "❌ Gemini: " + error.get(
+                "message",
+                "eroare necunoscută"
             )
 
-        candidates = data.get("candidates", [])
+        # Caută textul răspunsului
+        if "outputs" in result:
+            for output in result["outputs"]:
+                if output.get("type") == "text":
+                    return output.get("text", "").strip()
 
-        if not candidates:
-            return "SKIP"
+        if "output" in result:
+            output = result["output"]
 
-        parts = candidates[0].get(
-            "content", {}
-        ).get("parts", [])
+            if isinstance(output, str):
+                return output.strip()
 
-        if not parts:
-            return "SKIP"
+            if isinstance(output, list):
+                for item in output:
+                    if item.get("type") == "text":
+                        return item.get("text", "").strip()
 
-        return parts[0].get(
-            "text",
-            ""
-        ).strip()
+        return "SKIP"
 
     except Exception as e:
         print("Gemini error:", e)
-        return "❌ Eroare Gemini."
+        return "❌ Eroare Gemini: " + str(e)
 
 
-async def mesaj_primit(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def mesaj(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message:
         return
 
+    if not update.message.text:
+        return
+
     text = update.message.text
 
-    if not text:
+    raspuns = ask_gemini(text)
+
+    if not raspuns:
         return
 
-    if contine_injuratura(text):
-        await update.message.reply_text(
-            random.choice(REPLICI)
-        )
+    if raspuns == "SKIP":
         return
 
-    answer = gemini_response(text)
-
-    if not answer or answer == "SKIP":
-        return
-
-    await update.message.reply_text(answer)
+    await update.message.reply_text(raspuns)
 
 
 def main():
@@ -189,19 +116,14 @@ def main():
         return
 
     print("🐻 LABA DE URS PORNITĂ!")
-    print("🤖 Gemini:", GEMINI_MODEL)
+    print("🤖 MODEL:", MODEL)
 
-    app = (
-        Application
-        .builder()
-        .token(TOKEN)
-        .build()
-    )
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
-            mesaj_primit
+            mesaj
         )
     )
 
@@ -210,3 +132,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+În "requirements.txt":
+
+python-telegram-bot
+requests
