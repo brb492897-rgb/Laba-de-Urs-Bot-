@@ -13,36 +13,26 @@ from telegram.ext import (
 TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 SYSTEM_PROMPT = """
 Ești Laba de Urs 🐻, un bot de Telegram pentru un grup de prieteni.
 
-PERSONALITATE:
-- Ești foarte sociabil.
-- Ești amuzant și faci caterincă.
-- Vorbești natural, în română.
-- Poți folosi limbaj colocvial și vulgar moderat când se potrivește
-  contextului de glumă.
-- Nu trebuie să fii politicos excesiv.
-- Răspunsurile sunt de obicei scurte și amuzante.
-- Nu răspunde robotic.
-- Nu repeta aceeași glumă mereu.
+Vorbești natural în limba română.
+Ești foarte amuzant, faci caterincă și glume.
+Poți folosi limbaj colocvial și vulgar moderat atunci când se potrivește.
+Răspunsurile sunt de obicei scurte.
 
-IMPORTANT:
-Nu răspunde la absolut fiecare mesaj banal.
-Dacă mesajul nu necesită răspuns, răspunde cu exact:
+Nu răspunde la fiecare mesaj banal.
+Dacă mesajul nu necesită răspuns, răspunde exact cu:
 SKIP
 
-Dacă cineva te salută sau îți vorbește direct, răspunde.
+Dacă cineva îți vorbește direct, te salută, pune o întrebare
+sau face caterincă cu tine, răspunde natural.
 
-Dacă cineva înjură, poți răspunde în stil de caterincă, de exemplu:
-„Taci, bă, că te ia Laba de Urs 😂🐻”
-
+Dacă cineva înjură, poți răspunde în stil de caterincă.
 Nu amenința serios și nu încuraja violența reală.
-Totul trebuie să fie clar în spirit de glumă.
 
-Nu pretinde că ești om.
 Dacă cineva întreabă cine ești, spune că ești botul Laba de Urs.
 """
 
@@ -51,7 +41,6 @@ CUVINTE_INJURATURI = [
     "pula",
     "pulă",
     "coaie",
-    "coaiele",
     "fut",
     "futu",
     "futut",
@@ -64,13 +53,12 @@ CUVINTE_INJURATURI = [
     "prost"
 ]
 
-REPLICI_CATERINCA = [
+REPLICI = [
     "Taci, bă, că te-a auzit ursul 😂🐻",
-    "Bă, ușor cu vocabularul, că se sperie ursul 😂🐻",
+    "Bă, ușor cu vocabularul, că se trezește ursul 😂🐻",
     "Gata, mă, iar ai pornit motorul de înjurături? 😂",
     "Băăă, ce limbaj ai azi 😂🐻",
-    "Mai încet, campionule, că te vede Laba de Urs 😂",
-    "Ce-ai băut azi de ai venit cu asemenea vocabular? 😂🐻"
+    "Mai încet, campionule, că te vede Laba de Urs 😂🐻"
 ]
 
 
@@ -86,7 +74,7 @@ def contine_injuratura(text):
 
 def gemini_response(text):
     if not GEMINI_API_KEY:
-        return "❌ GEMINI_API_KEY nu este setat în Railway."
+        return "❌ GEMINI_API_KEY nu este setat!"
 
     url = (
         "https://generativelanguage.googleapis.com/"
@@ -136,7 +124,10 @@ def gemini_response(text):
             error = data.get("error", {})
             return (
                 "❌ Gemini: "
-                + error.get("message", "eroare necunoscută")
+                + error.get(
+                    "message",
+                    "eroare necunoscută"
+                )
             )
 
         candidates = data.get("candidates", [])
@@ -152,7 +143,8 @@ def gemini_response(text):
             return "SKIP"
 
         return parts[0].get(
-            "text", ""
+            "text",
+            ""
         ).strip()
 
     except Exception as e:
@@ -173,14 +165,12 @@ async def mesaj_primit(
     if not text:
         return
 
-    # Dacă înjură, răspunde imediat cu caterincă
     if contine_injuratura(text):
         await update.message.reply_text(
-            random.choice(REPLICI_CATERINCA)
+            random.choice(REPLICI)
         )
         return
 
-    # Altfel lasă Gemini să decidă dacă răspunde
     answer = gemini_response(text)
 
     if not answer or answer == "SKIP":
@@ -200,7 +190,7 @@ def main():
         return
 
     print("🐻 LABA DE URS PORNITĂ!")
-    print("🤖 AI: Gemini")
+    print("🤖 Gemini:", GEMINI_MODEL)
 
     app = (
         Application
